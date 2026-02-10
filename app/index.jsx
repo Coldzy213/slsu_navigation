@@ -35,7 +35,7 @@ export default function Index() {
           <View style={welcomeStyles.buttonGroup}>
             <TouchableOpacity
               style={welcomeStyles.primaryButton}
-              onPress={() => router.push("/(root)/map")} // Navigate to your OSM Map
+              onPress={() => router.push("/(tabs)/map")} // Navigate to your OSM Map
               activeOpacity={0.8}
             >
               <Text style={welcomeStyles.buttonTextPrimary}>
@@ -61,9 +61,7 @@ export default function Index() {
           >
             <Text style={welcomeStyles.linkText}>
               New student?{" "}
-              <Text style={{ color: welcomeStyles.primary, fontWeight: "700" }}>
-                Create an account
-              </Text>
+              <Text style={welcomeStyles.linkTextClick}>Create an account</Text>
             </Text>
           </TouchableOpacity>
         </View>

@@ -22,21 +22,20 @@ export const welcomeStyles = StyleSheet.create({
   },
   contentContainer: {
     flex: 1,
-    paddingHorizontal: 30,
-    paddingVertical: 40,
+    paddingHorizontal: width * 0.05,
+    //paddingHorizontal: 30,
+    paddingVertical: height * 0.05,
     justifyContent: "space-between",
   },
-  headerGroup: {
-    alignItems: "center",
-  },
+  headerGroup: {},
   title: {
+    fontFamily: "Poppins_800ExtraBold",
     fontSize: 32,
-    fontWeight: "800",
     color: COLORS.text,
     textAlign: "center",
-    marginBottom: 12,
   },
   subtitle: {
+    fontFamily: "Poppins_400Regular",
     fontSize: 16,
     lineHeight: 24,
     color: COLORS.textLight,
@@ -56,22 +55,22 @@ export const welcomeStyles = StyleSheet.create({
     elevation: 4,
   },
   buttonTextPrimary: {
+    fontFamily: "Poppins_700Bold",
     color: COLORS.white,
     fontSize: 18,
-    fontWeight: "700",
     textAlign: "center",
   },
   secondaryButton: {
     borderWidth: 2,
-    borderColor: COLORS.border, // #B3E5FC
+    borderColor: COLORS.border,
     paddingVertical: 18,
     borderRadius: 16,
     backgroundColor: "transparent",
   },
   buttonTextSecondary: {
+    fontFamily: "Poppins_600SemiBold",
     color: COLORS.primary,
     fontSize: 18,
-    fontWeight: "600",
     textAlign: "center",
   },
   linkContainer: {
@@ -79,7 +78,15 @@ export const welcomeStyles = StyleSheet.create({
     alignItems: "center",
   },
   linkText: {
+    fontFamily: "Poppins_400Regular",
     fontSize: 15,
     color: COLORS.textLight,
+  },
+  linkTextClick: {
+    fontFamily: "Poppins_400Regular",
+    fontSize: 15,
+    color: "#FF7E67",
+    textDecorationLine: "underline",
+    textDecorationStyle: "solid",
   },
 });

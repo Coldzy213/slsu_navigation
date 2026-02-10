@@ -1,0 +1,148 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { View, StyleSheet, Alert, TouchableOpacity, Text } from 'react-native';
+import MapView, { Marker, Polygon, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapViewDirections from 'react-native-maps-directions';
+import * as Location from 'expo-location';
+import { isPointInPolygon } from 'geolib';
+import { CAMPUS_POLYGON } from './CampusData';
+import { COLORS } from "../../constants/colors"; // Using your existing colors
+
+const GOOGLE_MAPS_APIKEY = 'YOUR_GOOGLE_API_KEY_HERE';
+
+// Example landmark data for your campus
+const CAMPUS_LANDMARKS = [
+  { id: '1', name: 'Main Library', coords: { latitude: 10.3930, longitude: 124.9795 } },
+  { id: '2', name: 'Science Building', coords: { latitude: 10.3915, longitude: 124.9805 } },
+];
+
+export default function CampusMap() {
+  const mapRef = useRef(null);
+  const [userLocation, setUserLocation] = useState(null);
+  const [destination, setDestination] = useState(null);
+  const [isInside, setIsInside] = useState(false);
+
+  const CAMPUS_CENTER = {
+    latitude: 10.3922,
+    longitude: 124.9798,
+    latitudeDelta: 0.003,
+    longitudeDelta: 0.003,
+  };
+
+  useEffect(() => {
+    (async () => {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return;
+
+      await Location.watchPositionAsync(
+        { accuracy: Location.Accuracy.High, distanceInterval: 5 },
+        (location) => {
+          const { latitude, longitude } = location.coords;
+          const inside = isPointInPolygon({ latitude, longitude }, CAMPUS_POLYGON);
+          setIsInside(inside);
+          if (inside) setUserLocation(location.coords);
+        }
+      );
+    })();
+  }, []);
+
+  // Function to start routing
+  const handleSelectBuilding = (buildingCoords) => {
+    if (!isInside) {
+      Alert.alert("Locked", "You must be on campus to use navigation.");
+      return;
+    }
+    setDestination(buildingCoords);
+  };
+
+  return (
+    <View style={styles.container}>
+      <MapView
+        ref={mapRef}
+        provider={PROVIDER_GOOGLE}
+        style={styles.map}
+        mapType="hybrid"
+        initialRegion={CAMPUS_CENTER}
+        scrollEnabled={isInside}
+        zoomEnabled={isInside}
+        cameraZoomRange={{ minCenterIdlingZoomLevel: 16, maxCenterIdlingZoomLevel: 20 }}
+        mapBoundary={{
+          northEast: { latitude: 10.3945, longitude: 124.9811 },
+          southWest: { latitude: 10.3898, longitude: 124.9785 },
+        }}
+      >
+        <Polygon
+          coordinates={CAMPUS_POLYGON}
+          fillColor="rgba(100, 200, 100, 0.1)"
+          strokeColor="#FFFFFF"
+          strokeWidth={2}
+        />
+
+        {/* Draw the Route */}
+        {userLocation && destination && (
+          <MapViewDirections
+            origin={userLocation}
+            destination={destination}
+            apikey={GOOGLE_MAPS_APIKEY}
+            strokeWidth={4}
+            strokeColor={COLORS.primary}
+            mode="WALKING" // Important for campus paths
+            onReady={(result) => {
+              mapRef.current.fitToCoordinates(result.coordinates, {
+                edgePadding: { right: 50, bottom: 50, left: 50, top: 50 },
+              });
+            }}
+          />
+        )}
+
+        {/* Building Markers */}
+        {CAMPUS_LANDMARKS.map(item => (
+          <Marker 
+            key={item.id} 
+            coordinate={item.coords} 
+            title={item.name} 
+            onPress={() => handleSelectBuilding(item.coords)}
+          />
+        )}
+
+        {userLocation && <Marker coordinate={userLocation} title="You" pinColor="blue" />}
+      </MapView>
+
+      {/* Simple Search Buttons Overlay */}
+      <View style={styles.overlay}>
+        <Text style={styles.overlayTitle}>Navigate to:</Text>
+        {CAMPUS_LANDMARKS.map(item => (
+          <TouchableOpacity 
+            key={item.id} 
+            style={styles.button} 
+            onPress={() => handleSelectBuilding(item.coords)}
+          >
+            <Text style={styles.buttonText}>{item.name}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  map: { width: '100%', height: '100%' },
+  overlay: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
+    right: 20,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    padding: 15,
+    borderRadius: 15,
+    elevation: 5,
+  },
+  overlayTitle: { fontFamily: 'Poppins_700Bold', marginBottom: 10 },
+  button: {
+    backgroundColor: COLORS.primary,
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 5,
+  },
+  buttonText: { color: '#fff', fontFamily: 'Poppins_400Regular', textAlign: 'center' },
+});
