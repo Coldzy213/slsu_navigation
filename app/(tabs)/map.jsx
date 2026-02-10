@@ -97,6 +97,10 @@ export default function CampusMap() {
           animated: true,
         }}
         // This prevents the map from moving when clicking markers
+
+        // 3. ZOOM LIMITS: Prevents zooming out so far they see the whole city
+        minZoomLevel={16}
+        maxZoomLevel={20}
         moveOnMarkerPress={true}
         showsUserLocation={isInside}
       >
