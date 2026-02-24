@@ -1,24 +1,33 @@
 import * as Location from "expo-location";
 import { isPointInPolygon } from "geolib";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, StyleSheet, View } from "react-native";
-import MapView, { Marker, Polygon, PROVIDER_GOOGLE } from "react-native-maps";
-import { CAMPUS_POLYGON } from "../../constants/campusData";
+import {
+  ActivityIndicator,
+  Alert,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import MapView, {
+  Marker,
+  Polygon,
+  Polyline,
+  PROVIDER_GOOGLE,
+} from "react-native-maps";
 
-//npx expo install react-native-maps expo-location - package of the map
-//npm install geolib - package paras pagcompare sa boundary
+// Your custom imports
+import { CAMPUS_POLYGON } from "../../constants/campusData";
+import { EDGES, NODES } from "../../constants/navigationData";
+import { runDijkstra } from "../../utils/dijkstra";
+import { findNearestNode } from "../../utils/geoUtils";
 
 export default function CampusMap() {
   const [userLocation, setUserLocation] = useState(null);
   const [isInside, setIsInside] = useState(true);
   const [loading, setLoading] = useState(true);
-
-  const CAMPUS_CENTER = {
-    latitude: 10.3922,
-    longitude: 124.9798,
-    latitudeDelta: 0.003,
-    longitudeDelta: 0.003,
-  };
+  const [route, setRoute] = useState([]);
+  const [destinationName, setDestinationName] = useState("");
 
   useEffect(() => {
     let subscription;
@@ -36,7 +45,7 @@ export default function CampusMap() {
       setLoading(false);
 
       subscription = await Location.watchPositionAsync(
-        { accuracy: Location.Accuracy.High, distanceInterval: 5 },
+        { accuracy: Location.Accuracy.High, distanceInterval: 2 },
         (location) => checkLocation(location.coords),
       );
     })();
@@ -50,17 +59,43 @@ export default function CampusMap() {
       CAMPUS_POLYGON,
     );
 
-    setIsInside(!inside);
+    setIsInside(inside);
+    setUserLocation(coords);
+  };
 
-    if (inside) {
-      setUserLocation(coords);
-    } else {
-      setUserLocation(null);
+  const handleNavigation = (targetNodeId) => {
+    if (!userLocation) {
+      Alert.alert(
+        "Waiting for GPS",
+        "Please wait until your location is detected.",
+      );
+      return;
     }
+
+    // 1. Find the closest node to the user's live GPS
+    const startNodeId = findNearestNode(userLocation, NODES);
+
+    // 2. Run the Dijkstra Algorithm
+    const pathIds = runDijkstra(startNodeId, targetNodeId, EDGES);
+
+    // 3. Convert path IDs to coordinates
+    const routeCoords = pathIds.map((id) => ({
+      latitude: NODES[id].latitude,
+      longitude: NODES[id].longitude,
+    }));
+
+    // 4. Update the state to draw the line
+    setRoute([
+      { latitude: userLocation.latitude, longitude: userLocation.longitude },
+      ...routeCoords,
+    ]);
+    setDestinationName(NODES[targetNodeId].label);
   };
 
   if (loading) {
-    return <ActivityIndicator style={{ flex: 1 }} size="large" />;
+    return (
+      <ActivityIndicator style={{ flex: 1 }} size="large" color="#2D5E2D" />
+    );
   }
 
   return (
@@ -69,41 +104,21 @@ export default function CampusMap() {
         provider={PROVIDER_GOOGLE}
         style={styles.map}
         mapType="hybrid"
-        // Use 'camera' instead of 'initialRegion' for stricter control
         camera={{
-          center: {
-            latitude: 10.3922,
-            longitude: 124.9798,
-          },
+          center: { latitude: 10.3922, longitude: 124.9798 },
           pitch: 0,
           heading: 0,
-          altitude: 1000, // Zoom level for iOS
-          zoom: 17, // Zoom level for Android
+          altitude: 1000,
+          zoom: 17,
         }}
-        // Strict interaction control
+        // Still using your restriction logic
         scrollEnabled={isInside}
         zoomEnabled={isInside}
-        pitchEnabled={true}
-        rotateEnabled={false}
-        // The Boundary limit
-        mapBoundary={{
-          northEast: { latitude: 10.3945, longitude: 124.9811 },
-          southWest: { latitude: 10.3898, longitude: 124.9785 },
-        }}
-        // Modern zoom limits
-        cameraZoomRange={{
-          minCenterIdlingZoomLevel: 16,
-          maxCenterIdlingZoomLevel: 20,
-          animated: true,
-        }}
-        // This prevents the map from moving when clicking markers
-
-        // 3. ZOOM LIMITS: Prevents zooming out so far they see the whole city
         minZoomLevel={16}
         maxZoomLevel={20}
-        moveOnMarkerPress={true}
-        showsUserLocation={isInside}
+        showsUserLocation={true}
       >
+        {/* Campus Boundary */}
         <Polygon
           coordinates={CAMPUS_POLYGON}
           fillColor="rgba(100, 200, 100, 0.2)"
@@ -111,19 +126,87 @@ export default function CampusMap() {
           strokeWidth={3}
         />
 
-        {userLocation && (
-          <Marker
-            coordinate={userLocation}
-            title="You are here"
-            pinColor="#2D5E2D"
+        {/* The Navigation Route Line */}
+        {route.length > 0 && (
+          <Polyline
+            coordinates={route}
+            strokeColor="#4CAF50"
+            strokeWidth={5}
+            lineJoin="round"
           />
         )}
+
+        {/* Markers for Navigation Nodes/Buildings */}
+        {Object.keys(NODES).map(
+          (key) =>
+            NODES[key].label && (
+              <Marker
+                key={key}
+                coordinate={{
+                  latitude: NODES[key].latitude,
+                  longitude: NODES[key].longitude,
+                }}
+                title={NODES[key].label}
+                onPress={() => handleNavigation(key)}
+                pinColor="#2D5E2D"
+              />
+            ),
+        )}
       </MapView>
+
+      {/* Navigation UI Overlay */}
+      <View style={styles.overlay}>
+        <Text style={styles.statusText}>
+          {isInside ? "📍 On Campus" : "❌ Outside SLSU Boundary"}
+        </Text>
+        {destinationName && (
+          <View style={styles.routeInfo}>
+            <Text style={styles.destText}>Going to: {destinationName}</Text>
+            <TouchableOpacity
+              onPress={() => {
+                setRoute([]);
+                setDestinationName("");
+              }}
+              style={styles.cancelBtn}
+            >
+              <Text style={{ color: "white", fontWeight: "bold" }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: "center", justifyContent: "center" },
-  map: { width: "80%", height: "80%" },
+  container: { flex: 1 },
+  map: { width: "100%", height: "100%" },
+  overlay: {
+    position: "absolute",
+    bottom: 30,
+    left: 20,
+    right: 20,
+    alignItems: "center",
+  },
+  statusText: {
+    backgroundColor: "rgba(255,255,255,0.9)",
+    paddingHorizontal: 15,
+    paddingVertical: 5,
+    borderRadius: 20,
+    marginBottom: 10,
+    overflow: "hidden",
+    fontWeight: "bold",
+  },
+  routeInfo: {
+    backgroundColor: "white",
+    padding: 15,
+    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    width: "100%",
+    elevation: 5,
+  },
+  destText: { fontWeight: "bold", fontSize: 14, color: "#333" },
+  cancelBtn: { backgroundColor: "#d32f2f", padding: 8, borderRadius: 6 },
 });
